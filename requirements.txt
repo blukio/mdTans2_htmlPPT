@@ -1,0 +1,2 @@
+Markdown>=3.3
+Jinja2>=3.0

@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }}</title>
+
+<!-- MathJax：行内 $...$，块级 $$...$$。必须在加载脚本前配置好。 -->
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['$', '$']], displayMath: [['$$', '$$']] },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+<!-- highlight.js：代码高亮。主题可直接换成 github-dark.min.css 等。 -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/styles/github.min.css">
+<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/highlight.min.js"></script>
+
+<style>
+  /* ---------- 可主题化变量：改这里就能换配色 ---------- */
+  :root {
+    --bg: #ffffff;
+    --fg: #111111;
+    --muted: #555555;
+    --border: #9aa3af;
+    --red: #b91c1c;
+    --code-bg: #fafbfc;
+    --quote-bg: #f7f7f7;
+
+    --title-bg: rgba(59, 7, 100, .72);   /* 标题条玻璃底色 */
+    --title-fg: #ffffff;
+    --title-accent: #fca5a5;             /* 标题条里的 <b> */
+
+    --font: system-ui, -apple-system, "PingFang SC", "Noto Sans CJK SC",
+            "Microsoft YaHei", sans-serif;
+    --mono: "LXGW WenKai Mono", "JetBrains Mono", ui-monospace,
+            SFMono-Regular, Menlo, Consolas, monospace;
+
+    --page-padding-y: 3vh;
+    --page-padding-x: 4vw;
+    --base-font: clamp(20px, 3.25vh, 35px);
+    --transition: .28s cubic-bezier(.22, .61, .36, 1);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font);
+    overflow: hidden;                 /* 幻灯片永不滚动 */
+  }
+
+  /* ---------- 每一页：铺满视口的固定画布 ---------- */
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: none;
+    padding: var(--page-padding-y) var(--page-padding-x);
+    overflow: hidden;
+    font-size: var(--base-font);
+    line-height: 1.7;
+  }
+
+  .slide .inner {
+    position: relative;
+    z-index: 1;                       /* 盖在顶部光斑 ::before 之上 */
+    display: flow-root;               /* 包含首尾 margin 与浮动，测量才准 */
+    width: 100%;
+    overflow-wrap: anywhere;
+    transform-origin: top left;       /* 等比缩放从左上角开始 */
+  }
+
+  /* ---------- 翻页动画：两页首尾相接，铺满屏幕 ---------- */
+  .slide.active {
+    display: block;
+    z-index: 2;
+    animation: pagein var(--transition);
+  }
+  .slide.leaving {
+    display: block;
+    z-index: 1;
+    animation: pageout var(--transition);
+  }
+  @keyframes pagein {
+    from { transform: translateX(calc(100% * var(--dir, 1))); }
+  }
+  /* 旧页少退出 4px，被新页压住，消除接缝处的亚像素白线 */
+  @keyframes pageout {
+    to { transform: translateX(calc(var(--dir, 1) * (4px - 100%))); }
+  }
+  .slide.no-anim { animation: none; }   /* 首屏直接显示 */
+
+  @media (prefers-reduced-motion: reduce) {
+    .slide.active, .slide.leaving { animation: none; }
+  }
+
+  /* ---------- 标题条：不参与正文缩放 ---------- */
+  .slide .titlebar {
+    position: relative;
+    z-index: 2;
+    margin: calc(-1 * var(--page-padding-y)) calc(-1 * var(--page-padding-x)) .8em;
+    padding: .3em var(--page-padding-x);
+    background: var(--title-bg);
+    -webkit-backdrop-filter: blur(14px) saturate(1.5);
+    backdrop-filter: blur(14px) saturate(1.5);
+    border-bottom: 1px solid rgba(255, 255, 255, .25);
+  }
+  .slide .titlebar h1 {
+    font-size: 1.55em;
+    color: var(--title-fg);
+    overflow-wrap: anywhere;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .55), 0 2px 10px rgba(0, 0, 0, .35);
+  }
+  .slide .titlebar h1 :is(b, strong) { color: var(--title-accent); }
+
+  /* 顶部彩色光斑：给毛玻璃提供可被模糊的底 */
+  .slide::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 5em;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(30em 10em at 12% -30%, rgba(59, 130, 246, .5), transparent 60%),
+      radial-gradient(26em 9em at 58% -50%, rgba(139, 92, 246, .42), transparent 60%),
+      radial-gradient(30em 10em at 94% -25%, rgba(6, 182, 212, .4), transparent 60%);
+  }
+
+  /* 非页首的 h1 兜底 */
+  .slide .inner h1 {
+    font-size: 1.55em;
+    margin: 0 0 .6em;
+    border-bottom: 2px solid #8fa3c8;
+    padding-bottom: .3em;
+  }
+
+  /* ---------- 正文排版 ---------- */
+  .slide h2 { font-size: 1.25em; margin: 1em 0 .5em; }
+  .slide h3 { font-size: 1.2em; color: var(--muted); margin: 1em 0 .4em; }
+  .slide p { margin: .5em 0; }
+  .slide :is(b, strong) { color: var(--red); }
+  .slide ul, .slide ol { padding-left: 1.6em; margin: .5em 0; }
+  .slide li { margin: .25em 0; }
+
+  .slide blockquote {
+    border-left: 3px solid var(--border);
+    padding: .3em 1.2em;
+    margin: .8em 0;
+    color: var(--muted);
+    background: var(--quote-bg);
+  }
+  .slide blockquote::before {
+    content: "\201C";
+    float: left;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 2.8em;
+    line-height: .9;
+    margin: .05em .25em 0 0;
+    color: #bdbdbd;
+    user-select: none;
+  }
+
+  .slide code {
+    font-size: .9em;
+    font-family: var(--mono);
+  }
+  .slide pre {
+    background: var(--code-bg);
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: .4em .6em;
+    margin: .8em 0;
+    overflow: visible;
+  }
+  .slide pre code { background: none; padding: 0; color: var(--fg); }
+  .slide pre code.hljs { overflow: visible; }
+
+  .slide a { color: var(--muted); }
+  .slide a.badlink {
+    color: var(--red);
+    text-decoration: line-through;
+    cursor: not-allowed;
+  }
+  .slide hr { border: none; border-top: 2px solid var(--border); margin: 1.2em 0; }
+
+  /* ---------- 图片：先限制到可用高度，再与正文一起缩放 ---------- */
+  .slide img {
+    display: block;
+    max-width: 90%;
+    margin: .8em auto;
+    border-radius: 8px;
+  }
+  .slide .inner img {
+    max-height: var(--image-height, 60vh);
+    object-fit: contain;
+  }
+  .slide img.badlink {
+    border: 2px dashed var(--red);
+    border-radius: 6px;
+    min-width: 8em;
+    min-height: 4em;
+    background: repeating-linear-gradient(45deg, #fff, #fff 8px, #fde8e8 8px, #fde8e8 16px);
+  }
+
+  /* ---------- 表格 ---------- */
+  .slide table {
+    border-collapse: collapse;
+    margin: .8em 0;
+    font-size: .85em;
+    max-width: 100%;
+  }
+  .slide th, .slide td {
+    border: 1px solid #d1d5db;
+    padding: .25em .7em;
+    text-align: left;
+  }
+  .slide th { background: var(--quote-bg); }
+
+  /* ---------- 可选：标记 AI 补充内容 ---------- */
+  .slide span.aigc {
+    display: inline-block;
+    border: 1px dashed #ddccf0;
+    border-radius: 4px;
+    padding-left: .45em;
+    background: #fff;
+    color: rgba(76, 29, 149, .75);
+  }
+  .slide .aigc::before {
+    content: "";
+    display: inline-block;
+    width: .95em;
+    height: .95em;
+    margin-right: .2em;
+    vertical-align: -.1em;
+    background-color: #6b21a8;
+    clip-path: polygon(50% 4%, 62% 36%, 96% 50%, 62% 64%, 50% 96%, 36% 64%, 4% 50%, 36% 36%);
+  }
+  .slide .aigc a { color: rgba(76, 29, 149, .75); }
+
+  /* ---------- 页码 ---------- */
+  #pager {
+    position: fixed;
+    right: 2.5vw;
+    bottom: 2.5vh;
+    font-size: 14px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+    z-index: 10;
+  }
+
+  /* ---------- 打印 / 导出 PDF：所有页纵向排列 ---------- */
+  @media print {
+    html, body { height: auto; overflow: visible; }
+    body { background: #fff; }
+    .slide {
+      position: static;
+      display: block !important;
+      height: 100vh;
+      page-break-after: always;
+      break-after: page;
+      animation: none !important;
+    }
+    .slide .inner { transform: none !important; }
+    #pager { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header style="display:none" aria-hidden="true">{{ slide_count }} slides</header>
+<script id="slides-data" type="application/json">{{ slides_json }}</script>
+<div id="pager"><span id="cur">1</span> / <span id="total">–</span></div>
+
+<script>
+(function () {
+  'use strict';
+
+  document.addEventListener('DOMContentLoaded', init);
+
+  function init() {
+    var pager = document.getElementById('pager');
+    var curEl = document.getElementById('cur');
+    var totalEl = document.getElementById('total');
+
+    var slides = [];
+    try {
+      var data = JSON.parse(document.getElementById('slides-data').textContent);
+      if (Array.isArray(data)) {
+        slides = data.map(makeSlide);
+      }
+    } catch (e) {
+      console.error('slides-data 解析失败：', e);
+    }
+
+    if (!slides.length) {
+      slides = [makeSlide('<h1>没有内容</h1>' +
+        '<p>这个页面由 build.py 生成；直接打开模板时没有幻灯片数据。</p>')];
+    }
+
+    slides.forEach(function (s) {
+      document.body.insertBefore(s, pager);
+    });
+
+    var index = 0;
+
+    totalEl.textContent = slides.length;
+    highlight(slides[0]);
+    fitSlides();
+    typesetAll();
+
+    /* ---------- 构造单页 ---------- */
+    function makeSlide(html, i) {
+      var section = document.createElement('section');
+      section.className = 'slide' + (i === 0 ? ' active no-anim' : '');
+
+      // 把开头的 <h1> 提出来做标题条：标题不参与正文的等比缩放
+      var m = html.match(/^\s*<h1[^>]*>[\s\S]*?<\/h1\s*>/i);
+      var title = '';
+      var body = html;
+      if (m) {
+        title = '<div class="titlebar">' + m[0].trim() + '</div>';
+        body = html.slice(m[0].length);
+      }
+
+      section.innerHTML = title + '<div class="inner">' + body + '</div>';
+      return section;
+    }
+
+    /* ---------- 翻页 ---------- */
+    function show(n) {
+      var target = Math.max(0, Math.min(n, slides.length - 1));
+      if (target === index) return;
+
+      var dir = target > index ? 1 : -1;
+      var old = slides[index];
+
+      slides.forEach(function (s) { s.classList.remove('leaving', 'no-anim'); });
+
+      old.style.setProperty('--dir', dir);
+      old.classList.remove('active');
+      old.classList.add('leaving');
+      old.addEventListener('animationend', function () {
+        old.classList.remove('leaving');
+      }, { once: true });
+
+      index = target;
+      slides[index].style.setProperty('--dir', dir);
+      slides[index].classList.add('active');
+
+      curEl.textContent = index + 1;
+
+      highlight(slides[index]);
+      fitSlides();
+      typeset(slides[index]);
+      window.scrollTo(0, 0);
+    }
+
+    /* ---------- 自适应：整页等比缩放（只缩不放） ---------- */
+    function fitSlides() {
+      slides.forEach(function (slide) {
+        if (!slide.classList.contains('active')) return; // 隐藏页无法测量
+        var inner = slide.querySelector('.inner');
+        if (!inner) return;
+
+        var title = slide.querySelector('.titlebar');
+        var css = getComputedStyle(slide);
+        var width = slide.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight);
+        var bottom = slide.clientHeight - parseFloat(css.paddingBottom);
+
+        // 标题条：二分查找最大可用字号，最多占屏幕 30%
+        if (title) {
+          title.style.fontSize = '';
+          var base = parseFloat(css.fontSize) || 32;
+          var lo = 0;
+          var hi = base;
+          for (var k = 0; k < 16; k++) {
+            var size = (lo + hi) / 2;
+            title.style.fontSize = size + 'px';
+            var fitsHeight = title.offsetHeight <= slide.clientHeight * 0.3;
+            var fitsWidth = title.scrollWidth <= title.clientWidth;
+            if (fitsHeight && fitsWidth) lo = size; else hi = size;
+          }
+          title.style.fontSize = lo + 'px';
+        }
+
+        // 测量前必须清掉上一次的 transform，否则测量值会被缩放污染
+        inner.style.transform = 'none';
+
+        var height = Math.max(1, bottom - inner.offsetTop);
+        var images = inner.querySelectorAll('img');
+        inner.style.setProperty('--image-height', (height / Math.max(1, images.length)) + 'px');
+
+        var scale = Math.min(
+          1,
+          Math.max(1, width - 1) / Math.max(1, inner.scrollWidth),
+          Math.max(1, height - 1) / Math.max(1, inner.scrollHeight, inner.offsetHeight)
+        );
+        inner.style.transform = 'scale(' + scale + ')';
+      });
+    }
+
+    /* ---------- 合并重排请求 ---------- */
+    var fitFrame = 0;
+    function scheduleFit() {
+      cancelAnimationFrame(fitFrame);
+      fitFrame = requestAnimationFrame(fitSlides);
+    }
+
+    slides.forEach(function (slide) {
+      var inner = slide.querySelector('.inner');
+      var title = slide.querySelector('.titlebar');
+
+      if (window.ResizeObserver) {
+        var ro = new ResizeObserver(scheduleFit);
+        ro.observe(inner);
+        if (title) ro.observe(title);
+      }
+      // 图片异步加载完成会让高度变化
+      slide.addEventListener('load', scheduleFit, true);
+      slide.addEventListener('error', scheduleFit, true);
+    });
+
+    window.addEventListener('resize', scheduleFit);
+    window.addEventListener('load', scheduleFit);
+
+    if (document.fonts) {
+      document.fonts.ready.then(scheduleFit);
+      document.fonts.addEventListener('loadingdone', scheduleFit);
+    }
+
+    /* ---------- 代码高亮 ---------- */
+    function highlight(slide) {
+      if (!window.hljs || !slide) return;
+      slide.querySelectorAll('pre code').forEach(function (el) {
+        if (el.dataset.highlighted) return;
+        hljs.highlightElement(el);
+        el.dataset.highlighted = 'yes';
+      });
+    }
+
+    /* ---------- MathJax ---------- */
+    function typeset(slide) {
+      if (!window.MathJax || !MathJax.typesetPromise || !slide) return;
+      MathJax.typesetPromise([slide]).then(scheduleFit).catch(function () {});
+    }
+
+    function typesetAll() {
+      if (!window.MathJax) return;
+      var startup = MathJax.startup && MathJax.startup.promise;
+      var run = function () {
+        if (MathJax.typesetPromise) {
+          MathJax.typesetPromise().then(scheduleFit).catch(function () {});
+        }
+      };
+      if (startup) startup.then(run); else run();
+    }
+
+    /* ---------- 键盘 ---------- */
+    document.addEventListener('keydown', function (e) {
+      switch (e.key) {
+        case ' ':
+        case 'ArrowRight':
+        case 'ArrowDown':
+        case 'j':
+        case 'l':
+        case 'Enter':
+        case 'PageDown':
+          e.preventDefault();
+          show(index + 1);
+          break;
+        case 'ArrowLeft':
+        case 'ArrowUp':
+        case 'h':
+        case 'k':
+        case 'Backspace':
+        case 'PageUp':
+          e.preventDefault();
+          show(index - 1);
+          break;
+        case 'Home':
+          e.preventDefault();
+          show(0);
+          break;
+        case 'End':
+          e.preventDefault();
+          show(slides.length - 1);
+          break;
+        case 'f':
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+          } else {
+            document.exitFullscreen();
+          }
+          break;
+        case 'q':
+          window.close();
+          break;
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>
